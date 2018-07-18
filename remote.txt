@@ -1,0 +1,61 @@
+scp -i project12.pem p12.zip ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu
+conda info --envs
+
+scp -i project12.pem environment-gpu2.yml ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu
+scp -i project12.pem main.py ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu
+
+FROM SERVER 
+scp -i project12.pem ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu/frozen_fcn.pb ./
+scp -i project12.pem ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu/runs.zip ./
+
+TOO SERVER
+scp -i project12.pem main.py ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu
+scp -i project12.pem helper.py ubuntu@ec2-54-90-153-51.compute-1.amazonaws.com:/home/ubuntu
+
+
+FROZEN
+'process_image'  3436.40 ms
+'process_image'  2513.82 ms
+'process_image'  2602.50 ms
+'process_image'  2681.99 ms
+'process_image'  2747.47 ms
+
+OPTIMIZED
+'process_image'  2991.81 ms
+'process_image'  1859.05 ms
+'process_image'  1854.50 ms
+'process_image'  1938.93 ms
+'process_image'  1946.55 ms
+
+
+~/tensorflow/bazel-bin/tensorflow/python/tools/freeze_graph \
+--input_graph=binary_fcn.pb \
+--input_checkpoint=fcn.ckpt \
+--input_binary=true \
+--output_graph=frozen_fcn.pb \
+--output_node_names=logits
+
+~/tensorflow/bazel-bin/tensorflow/python/tools/optimize_for_inference \
+--input=frozen_fcn.pb \
+--output=optimized_fcn.pb \
+--frozen_graph=True \
+--input_names=image_input \
+--output_names=logits
+
+~/tensorflow/bazel-bin/tensorflow/tools/graph_transforms/transform_graph \
+--in_graph=frozen_fcn.pb \
+--out_graph=eightbit_fcn.pb \
+--inputs=image_input:0 \
+--outputs=logits \
+--transforms='
+add_default_attributes
+remove_nodes(op=Identity, op=CheckNumerics)
+fold_constants(ignore_errors=true)
+fold_batch_norms
+fold_old_batch_norms
+fuse_resize_and_conv
+quantize_weights
+quantize_nodes
+strip_unused_nodes
+sort_by_execution_order'
+
