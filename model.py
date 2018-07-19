@@ -128,7 +128,6 @@ def compile_keras(train_samples: pd.DataFrame, validation_samples:pd.DataFrame):
                                          validation_steps=validation_steps,
                                          steps_per_epoch=steps_per_epoch)
     model.save_weights('model.h5')
-
     print(history_object.history.keys())
     print('Loss')
     print(history_object.history['loss'])

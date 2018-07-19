@@ -31,7 +31,7 @@ def crop_lights(x_train: pd.DataFrame, ind: int) -> Any:
     x1, y1, x2, y2 = x_train[ind, 1], x_train[ind, 2], x_train[ind, 3], x_train[ind, 4]
     cropped = img[y1:y2, x1:x2]
     # tried to add different TL sizes
-    sizes = [(150, 200), (100, 150), (50, 100), (25, 50)]
+    sizes = [(75, 125), (50, 100), (100, 150)]
     return cv2.resize(cropped, random.choice(sizes))
 
 """one hot labels for cnn and classification"""
@@ -83,7 +83,7 @@ def synt_generator(samples: pd.DataFrame, type='img'):
                     labels.append(label)
                 # I don't why, but with very big arrays numpy shape begins producing unstable results (32, 400, 400, 2) or (32, ),
                 # I was trying to solve this problem, found some stackoveroflow topics, but did not manage to solve it
-                # Thus, do not set very big images
+                # Thus, do not set very big shapes
                 x_train = np.array(images)
                 y_train = np.array(labels)
                 yield x_train, y_train
@@ -160,9 +160,7 @@ def show(images, labels):
 if __name__ == "__main__":
     data = read_data(6)
     images, labels = next(synt_generator(data, 'img')(15))
-    print(labels.shape)
-
-    # show(images, labels)
+    show(images, labels)
     # print(images.shape)
     # show(images, labels)
     # images1, labels1 = next(generatorrrr(data)(5))
