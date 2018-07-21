@@ -51,6 +51,21 @@ def img_labels(i_shape, r_shape, x, y):
     label_img = cv2.resize(label, (400, 200))
     return np.reshape(label_img, (-1, 2))
 
+
+def full_img_labels(i_shape, r_shape, x, y, tag):
+    label = np.ndarray((r_shape[0], r_shape[1], 7))
+    back = np.zeros(7)
+    marked = np.zeros(7)
+    np.put(back, ind=0, v=1)
+    label[:, :, :] = back
+    mapping = {'stop': 1, 'warning': 2, 'go': 3, 'stopLeft': 4, 'warningLeft': 5, 'goLeft': 6}
+    ind = mapping[tag]
+    np.put(marked, ind=ind, v=1)
+    label[y:y + i_shape[0], x:x + i_shape[1], :] = marked
+    label_img = cv2.resize(label, (400, 200))
+    return np.reshape(label_img, (-1, 7))
+
+
 """the sizes of images must be setted according to input shape of NN"""
 def synt_generator(samples: pd.DataFrame, type='img'):
     def inner(batch_size: int, infinite=False) -> Tuple[List[np.ndarray], List[np.ndarray]]:
@@ -79,7 +94,8 @@ def synt_generator(samples: pd.DataFrame, type='img'):
                         label = img_labels(i_shape, r_shape, x, y)
                     else:
                         # for classification
-                        label = one_hot(batch_samples)
+                        mark = batch_samples['Annotation tag'].values[ind]
+                        label = full_img_labels(i_shape, r_shape, x, y, mark)
                     labels.append(label)
                 # I don't why, but with very big arrays numpy shape begins producing unstable results (32, 400, 400, 2) or (32, ),
                 # I was trying to solve this problem, found some stackoveroflow topics, but did not manage to solve it
@@ -157,10 +173,40 @@ def show(images, labels):
         cv2.waitKey(0)
 
 
+def show_color(images, labels):
+    #BGR
+    def color_func(x):
+        ind = np.argmax(x, axis=0)
+        if ind == 0:
+            return [0, 0, 0]
+        elif ind == 1:
+            #red
+            return [0, 0, 255]
+        elif ind == 2:
+            #yellow
+            return [255, 0, 0]
+        elif ind == 3:
+            #green
+            return [0, 255, 0]
+        else:
+            return [125, 125, 125]
+
+    for image, label in zip(images, labels):
+        bgr = cv2.cvtColor(image, cv2.COLOR_YUV2BGR)
+        # gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        cv2.imshow('image', bgr)
+        cv2.waitKey(0)
+        label_img = np.reshape(label, (200, 400, 7))
+        color_label = np.apply_along_axis(color_func, axis=2, arr=label_img)
+        cv2.imshow('label', color_label / 255.0)
+        cv2.waitKey(0)
+
+
 if __name__ == "__main__":
     data = read_data(6)
-    images, labels = next(synt_generator(data, 'img')(15))
-    show(images, labels)
+    images, labels = next(synt_generator(data, 'full')(5))
+    show_color(images, labels)
+
     # print(images.shape)
     # show(images, labels)
     # images1, labels1 = next(generatorrrr(data)(5))

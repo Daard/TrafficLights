@@ -11,7 +11,7 @@ from tensorflow.contrib.keras.python.keras.models import Sequential
 from tensorflow.contrib.keras.python.keras.layers.core import Flatten, Dense, Lambda,  Dropout
 from tensorflow.contrib.keras.python.keras.utils.np_utils import to_categorical
 
-from tensorflow.contrib.keras.python.keras.layers.convolutional import Conv2D
+from tensorflow.contrib.keras.python.keras.layers.convolutional import Conv2D, MaxPooling2D
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
@@ -93,8 +93,11 @@ def layers(keep_prob: Any, input_shape=(114, 52, 3), add_softmax=False):
     model = Sequential()
     model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=input_shape))
     model.add(Conv2D(filters=24, kernel_size=5, strides=1, padding='same', activation='relu', kernel_regularizer=reg))
+    # model.add(MaxPooling2D((2, 2), 2))
     model.add(Conv2D(filters=36, kernel_size=5, strides=1, padding='same', activation='relu', kernel_regularizer=reg))
+    # model.add(MaxPooling2D((2, 2), 2))
     model.add(Conv2D(filters=64, kernel_size=5, strides=1, padding='same', activation='relu', kernel_regularizer=reg))
+    # model.add(MaxPooling2D((2, 2), 2))
     model.add(Flatten())
     model.add(Dense(50))
     if keep_prob < 1:
@@ -112,7 +115,7 @@ def layers(keep_prob: Any, input_shape=(114, 52, 3), add_softmax=False):
 @timeit
 def compile_keras(train_samples: pd.DataFrame, validation_samples:pd.DataFrame):
     K.set_learning_phase(True)
-    size = 16
+    size = 128
     steps_per_epoch = len(train_samples) // size
     validation_steps = len(validation_samples) // size
     train_generator = generator(train_samples, crop=False)(size, infinite=True)
@@ -127,7 +130,7 @@ def compile_keras(train_samples: pd.DataFrame, validation_samples:pd.DataFrame):
                                          epochs=10, callbacks=[tensorboard],
                                          validation_steps=validation_steps,
                                          steps_per_epoch=steps_per_epoch)
-    model.save_weights('model.h5')
+    model.save_weights('cnn.h5')
     print(history_object.history.keys())
     print('Loss')
     print(history_object.history['loss'])
@@ -137,13 +140,12 @@ def compile_keras(train_samples: pd.DataFrame, validation_samples:pd.DataFrame):
 
 
 if __name__ == "__main__":
-    # train_nn(epochs=10, batch_size=256)
-    # data = read_data()
-    # train_samples, validation_samples = train_test_split(data, test_size=0.2)
-    # images, labels = next(generator(train_samples, crop=True)(batch_size=5))
+
+    data = read_data()
+    train_samples, validation_samples = train_test_split(data, test_size=0.2)
+    images, labels = next(generator(train_samples, crop=True)(batch_size=128))
     # for image in images:
     #     cv2.imshow('image', image)
     #     cv2.waitKey(0)
-    # compile_keras(train_samples, validation_samples)
+    compile_keras(train_samples, validation_samples)
     model = layers(keep_prob=0.5)
-    print(model.summary())

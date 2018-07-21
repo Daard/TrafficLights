@@ -12,8 +12,6 @@ from scrapping import *
 from utils import read_data
 from tensorflow.contrib.keras import backend as K
 from scrapping import show
-from tensorflow.contrib.keras.python.keras.callbacks import ModelCheckpoint
-import h5py
 from utils import timeit
 
 LOGITS = "logits"
@@ -58,6 +56,54 @@ def fcn(num_classes=2, learning=True) -> Sequential:
     model.add(Reshape((-1, num_classes)))
     return model
 
+#use pretrained fcn and add more classes in the end
+def fcn_class(learning=True):
+    model = fcn(2, learning=learning)
+    model.load_weights('./fcn_weights_f2.h5')
+    model.pop()
+    model.pop()
+
+    for layer in model.layers:
+        layer.trainable = False
+
+    kernel_size = 3
+    act = 'relu'
+    pad = 'same'
+    model.add(Conv2DTranspose(7, kernel_size, strides=2,  padding=pad, activation=act))
+    model.add(BatchNormalization())
+    model.add(Conv2DTranspose(7, kernel_size, strides=1, padding=pad, activation=act))
+    model.add(Reshape((-1, 7)))
+    return model
+
+
+def fcn_cv(learning=True):
+    K.set_learning_phase(learning)
+    reg = tf.contrib.layers.l2_regularizer(1e-3)
+    kernel_size = 3
+    pad = 'same'
+    act = 'relu'
+    model = Sequential()
+    model.add(Lambda(lambda x: x / 255.0 - 0.5, input_shape=(200, 400, 3)))
+    model.add(Conv2D(32, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(Conv2D(32, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(MaxPooling2D((2, 2), 2))
+    model.add(Conv2D(64, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(Conv2D(64, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(MaxPooling2D((2, 2), 2))
+    model.add(Conv2D(128, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(Conv2D(128, kernel_size, 1, padding=pad, activation=act, kernel_regularizer=reg))
+    model.add(MaxPooling2D((2, 2), 2))
+    model.add(Conv2D(7, 1, 1, padding=pad, kernel_regularizer=reg))
+    model.add(Conv2DTranspose(7, kernel_size, strides=2, activation=act, padding=pad))
+    model.add(BatchNormalization())
+    model.add(Conv2DTranspose(7, kernel_size, strides=2, activation=act, padding=pad))
+    model.add(BatchNormalization())
+    model.add(Conv2DTranspose(7, kernel_size, strides=2, padding=pad, activation=act))
+    model.add(BatchNormalization())
+    model.add(Conv2DTranspose(7, kernel_size, strides=1, padding=pad, activation=act))
+    model.add(Reshape((-1, 7)))
+    return model
+
 
 """tried to use cnn for whole image classification, loss was 0.7 after 7 epochs"""
 def cnn(keep_prob=0.5, input_shape=(200, 400, 3)):
@@ -78,7 +124,7 @@ def cnn(keep_prob=0.5, input_shape=(200, 400, 3)):
     return model
 
 
-def compile(model: Sequential, train_samples: pd.DataFrame, validation_samples:pd.DataFrame, gen, type='img'):
+def compile(name, model: Sequential, train_samples: pd.DataFrame, validation_samples:pd.DataFrame, gen, type='img'):
 
     # model.add(Reshape((-1, num_classes), name=RESHAPED))
     size = 5
@@ -90,18 +136,13 @@ def compile(model: Sequential, train_samples: pd.DataFrame, validation_samples:p
     adam = optimizers.Adam(lr=0.0001)
     model.compile(loss='categorical_crossentropy', optimizer=adam)
 
-    # checkpoint
-    # filepath = "weights-improvement-{epoch:02d}.hdf5"
-    # checkpoint = ModelCheckpoint(filepath, monitor='epoch', verbose=1, save_best_only=True, mode='max')
-    # callbacks_list = [checkpoint]
-
     history_object = model.fit_generator(train_generator,
                                          validation_data=validation_generator,
                                          epochs=5, callbacks=None,
                                          validation_steps=validation_steps,
                                          steps_per_epoch=steps_per_epoch)
 
-    model.save_weights('fcn_weights_f2.h5')
+    model.save_weights(name)
     # model.save('fcn_model.h5')
 
     print(history_object.history.keys())
@@ -113,9 +154,9 @@ def compile(model: Sequential, train_samples: pd.DataFrame, validation_samples:p
 
 
 """change file and model layers for check"""
-def predict(path, imgs):
+def predict(path, imgs, builder):
     K.set_learning_phase(False)
-    model = fcn(learning=False)
+    model = builder(learning=False)
     model.load_weights(path)
     print(model.summary())
 
@@ -125,14 +166,14 @@ def predict(path, imgs):
     return inner(imgs)
 
 
-def train(builder, type='img'):
+def train(name, builder, type='img'):
     data = read_data(13)
     print(data.index)
     print(len(data))
     train_samples, validation_samples = train_test_split(data, test_size=0.2)
     model = builder()
     print(model.summary())
-    compile(model, train_samples, validation_samples, synt_generator, type)
+    compile(name, model, train_samples, validation_samples, synt_generator, type)
 
 
 def check(path):
@@ -158,17 +199,16 @@ def pre_trained():
 
 
 if __name__ == "__main__":
-    # train(fcn)
-    # train(pre_trained)
+    # train('last_try.h5', fcn_cv, 'full')
 
     data = read_data(13)
-    imgs, _ = next(synt_generator(data)(15))
-    # USe this model
-    labels = predict('./fcn_weights_f2.h5', imgs)
-    show(imgs, labels)
+    imgs, _ = next(synt_generator(data, 'full')(15))
 
+    # # USe this model
+    labels = predict('./last_try.h5', imgs, fcn_cv)
+    show_color(imgs, labels)
 
-    # check('./fcn_weights_f2.h5')
+    check('./fcn_weights_f2.h5')
 
 
 
